@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MusicCue - 定制音乐推荐与歌单生成</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="/static/style.css?v=20260615T1651">
+</head>
+<body>
+    <!-- Animated background mesh -->
+    <div class="mesh-bg">
+        <div class="mesh-orb mesh-1"></div>
+        <div class="mesh-orb mesh-2"></div>
+        <div class="mesh-orb mesh-3"></div>
+    </div>
+    <div class="glass-bg"></div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="brand-icon-wrapper">
+                    <i data-lucide="music-4" class="brand-icon"></i>
+                    <div class="brand-icon-glow"></div>
+                </div>
+                <div class="brand-text">
+                    <h1>MusicCue</h1>
+                    <span>Personalized Apple Music Engine</span>
+                </div>
+            </div>
+
+            <!-- API Settings in Header -->
+            <div class="settings-trigger-container">
+                <div id="api-status-badge" class="badge-status badge-unresolved">
+                    <span class="status-dot"></span>
+                    <span class="badge-text">Key 未配置</span>
+                </div>
+                <button id="btn-settings-toggle" class="btn btn-icon-label" title="设置">
+                    <i data-lucide="settings"></i>
+                    <span>服务配置</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <main class="app-main">
+            
+            <!-- Left Panel: Taste Profile -->
+            <section class="workspace-left">
+                <!-- Gemini API Key configuration card -->
+                <div id="settings-card" class="card glass-card hidden fade-in">
+                    <div class="card-header">
+                        <i data-lucide="key-round" class="header-icon"></i>
+                        <h3>服务配置</h3>
+                        <button id="btn-settings-close" class="btn-close">&times;</button>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label for="input-api-key">Gemini API Key</label>
+                            <div class="input-wrapper">
+                                <i data-lucide="key-round" class="input-icon"></i>
+                                <input type="password" id="input-api-key" placeholder="AI Studio 获取 of API 密钥" />
+                            </div>
+                            <small class="helper-text">
+                                可在 <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a> 免费获取。密钥安全存储在您的本地浏览器。
+                            </small>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="input-shortcut-name">Mac 快捷指令名称</label>
+                            <div class="input-wrapper">
+                                <i data-lucide="terminal" class="input-icon"></i>
+                                <input type="text" id="input-shortcut-name" value="MusicCue" placeholder="默认: MusicCue" />
+                            </div>
+                            <small class="helper-text">
+                                本地同步时运行的 macOS 快捷指令 App 中的名称。
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 1: Music Taste Profile -->
+                <div class="card glass-card full-height-card">
+                    <div class="card-header">
+                        <i data-lucide="sliders" class="header-icon"></i>
+                        <h3>1. 初始化听歌画像</h3>
+                    </div>
+                    <div class="card-body scroll-body">
+                        <div class="tabs">
+                            <button class="tab-btn active" data-tab="tab-csv">上传 XML / CSV</button>
+                            <button class="tab-btn" data-tab="tab-manual">手动填入歌手</button>
+                        </div>
+
+                        <!-- Tab: XML/CSV File Upload -->
+                        <div id="tab-csv" class="tab-content active">
+                            <div class="upload-dropzone" id="csv-dropzone">
+                                <div class="dropzone-glow"></div>
+                                <div id="dropzone-default-content" class="dropzone-content-wrapper">
+                                    <i data-lucide="upload-cloud" class="upload-icon"></i>
+                                    <p class="upload-title">将 音乐.xml 或 历史记录.csv 拖入此区域</p>
+                                    <p class="upload-subtitle">支持 macOS 音乐导出的 Library.xml 或 Apple 导出的 Play Activity.csv</p>
+                                    <button class="btn btn-secondary btn-sm" id="btn-select-file">选择文件</button>
+                                </div>
+                                <div id="dropzone-loader-content" class="dropzone-content-wrapper hidden">
+                                    <div class="loader-spinner" style="width:28px; height:28px; margin-bottom:12px; margin-left:auto; margin-right:auto;"></div>
+                                    <p class="upload-title">正在上传并加权分析资料库...</p>
+                                </div>
+                                <input type="file" id="csv-file-input" accept=".xml,.csv" style="display: none;" />
+                            </div>
+                        </div>
+
+                        <!-- Tab: Manual Input -->
+                        <div id="tab-manual" class="tab-content">
+                            <div class="form-group">
+                                <label for="input-manual-taste">你平时爱听什么？(歌手 / 歌名 / 风格)</label>
+                                <div class="textarea-wrapper">
+                                    <textarea id="input-manual-taste" rows="4" placeholder="例如：周杰伦, 宇多田光, 鱼丁糸, City Pop, Lofi Beats, 台湾独立乐团..."></textarea>
+                                </div>
+                                <small class="helper-text">用逗号或换行分隔，AI 会基于这些品味进行推荐。</small>
+                            </div>
+                        </div>
+
+                        <!-- Taste Profile Result Display (Hidden initially) -->
+                        <div id="taste-profile-summary" class="taste-profile-summary hidden fade-in">
+                            <div class="stats-grid">
+                                <div class="stat-item">
+                                    <span class="stat-value" id="stat-artists-count">0</span>
+                                    <span class="stat-label">历史歌手</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-value" id="stat-tracks-count">0</span>
+                                    <span class="stat-label">去重单曲</span>
+                                </div>
+                                <div class="stat-item">
+                                    <span class="stat-value" id="stat-plays-count">0</span>
+                                    <span class="stat-label">总播放</span>
+                                </div>
+                            </div>
+                            
+                            <div class="profile-tags-section">
+                                <h4>最爱歌手</h4>
+                                <div class="tag-container" id="profile-artists-tags"></div>
+                            </div>
+
+                            <div class="profile-tags-section">
+                                <h4>常用流派</h4>
+                                <div class="tag-container" id="profile-genres-tags"></div>
+                            </div>
+
+                            <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--card-border);">
+                                <button id="btn-reset-profile" class="btn btn-secondary btn-sm btn-block">
+                                    <i data-lucide="refresh-cw"></i>
+                                    <span>重新导入或修改画像</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Center Panel: Recommendations Setup -->
+            <section class="workspace-center">
+                <!-- Step 2: Recommendations Setup -->
+                <div class="card glass-card full-height-card">
+                    <div class="card-header">
+                        <i data-lucide="sparkles" class="header-icon"></i>
+                        <h3>2. 场景化推荐工坊</h3>
+                    </div>
+                    <div class="card-body scroll-body">
+                        <!-- Scenario Input -->
+                        <div class="form-group">
+                            <label for="input-scenario">输入当前听歌场景或心情</label>
+                            <div class="textarea-wrapper">
+                                <textarea id="input-scenario" rows="3" placeholder="例如：深夜写代码需要安静专注，想要听一些空灵、带有后摇风格 of 亚洲独立音乐..."></textarea>
+                            </div>
+                        </div>
+
+                        <!-- Quick Templates -->
+                        <div class="scenario-templates">
+                            <span class="template-label">推荐场景模板：</span>
+                            <div class="template-pills">
+                                <button class="pill-btn" data-text="深夜静心敲代码，需要专注，推荐好听但不过于吵闹的日系 City Pop 或低保真 Lofi Beats">💻 深夜敲代码</button>
+                                <button class="pill-btn" data-text="下雨天的咖啡馆，想要一些轻柔、舒缓的华语小众民谣或吉他弹唱">☕ 雨天咖啡馆</button>
+                                <button class="pill-btn" data-text="高能量运动与健身，推荐带节奏感的 K-Pop 舞曲或节奏感强烈的电子律动">⚡ 运动健身</button>
+                                <button class="pill-btn" data-text="周末自驾兜风，阳光明媚，想要轻松、明朗，带有一点余晖感、复古爵士说唱或国语流行">🚗 自驾兜风</button>
+                                <button class="pill-btn" data-text="极度疲惫后的睡前放松，需要非常静谧、催眠的水下氛围音乐或新世纪器乐演奏">🌙 睡前催眠</button>
+                            </div>
+                        </div>
+
+                        <!-- Advanced Configurations Accordion -->
+                        <details class="advanced-settings">
+                            <summary>高级参数设置</summary>
+                            <div class="advanced-grid">
+                                <div class="form-group">
+                                    <label for="select-region">曲库地区</label>
+                                    <div class="select-wrapper">
+                                        <select id="select-region">
+                                            <option value="us" selected>美国 (US) - 推荐</option>
+                                            <option value="cn">中国大陆 (CN)</option>
+                                            <option value="tw">台湾 (TW)</option>
+                                            <option value="hk">香港 (HK)</option>
+                                            <option value="jp">日本 (JP)</option>
+                                            <option value="gb">英国 (UK)</option>
+                                        </select>
+                                        <i data-lucide="chevron-down" class="select-arrow"></i>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label for="input-limit">推荐数量</label>
+                                    <div class="input-wrapper">
+                                        <input type="number" id="input-limit" value="15" min="5" max="30" />
+                                    </div>
+                                </div>
+                                <div class="form-group slider-group">
+                                    <label for="input-temp">AI 探索度 (0.7)</label>
+                                    <input type="range" id="input-temp" min="0.2" max="1.0" step="0.1" value="0.7" />
+                                    <div class="slider-labels">
+                                        <span>保守</span>
+                                        <span>发掘</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+
+                        <!-- Actions -->
+                        <button id="btn-generate" class="btn btn-primary btn-block btn-lg" style="margin-top: 10px;">
+                            <i data-lucide="sparkles"></i>
+                            <span>开始生成推荐</span>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Panel: Recommendation Results & Sync -->
+            <section class="workspace-right">
+                <div class="card glass-card full-height-card">
+                    <div class="card-header header-between">
+                        <div class="header-left">
+                            <i data-lucide="list-music" class="header-icon"></i>
+                            <h3>推荐歌曲列表</h3>
+                            <span id="track-count-badge" class="badge hidden">0 首</span>
+                            
+                            <!-- Select All toggle -->
+                            <label id="select-all-container" class="custom-checkbox-label hidden">
+                                <input type="checkbox" id="chk-select-all" checked />
+                                <span class="checkbox-box"></span>
+                                <span class="checkbox-text">全选</span>
+                            </label>
+                        </div>
+                        <div class="header-actions">
+                            <div id="shortcuts-status" class="shortcuts-status-badge hidden">
+                                <span class="status-dot"></span>
+                                <span class="status-text">未检测到快捷指令</span>
+                            </div>
+                            <button id="btn-sync" class="btn btn-accent btn-sm hidden">
+                                <i data-lucide="shuffle"></i>
+                                <span>插入待播清单</span>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="card-body scroll-body">
+                        <!-- Loading State -->
+                        <div id="loader" class="loader-container hidden">
+                            <div class="loader-spinner"></div>
+                            <p class="loader-title" id="loader-title">AI 正在根据你的品味生成推荐...</p>
+                            <p class="loader-subtitle" id="loader-subtitle">正在联系 Gemini 展开多语言曲库搜索...</p>
+                        </div>
+
+                        <!-- Empty State -->
+                        <div id="empty-state" class="empty-state">
+                            <div class="disc-glow-container">
+                                <i data-lucide="disc" class="empty-icon animate-spin-slow"></i>
+                                <div class="disc-shadow"></div>
+                            </div>
+                            <h4>暂无推荐内容</h4>
+                            <p>请在左侧初始化您的听歌画像，输入场景，并点击“开始生成推荐”。</p>
+                        </div>
+
+                        <!-- Error State -->
+                        <div id="error-state" class="empty-state hidden">
+                            <i data-lucide="alert-triangle" class="empty-icon error-glow"></i>
+                            <h4 id="error-title">生成失败</h4>
+                            <p id="error-message">无法联络到推荐引擎，请检查您的 API 配置或网络状态。</p>
+                            <button class="btn btn-secondary btn-sm" id="btn-error-retry">重新尝试</button>
+                        </div>
+
+                        <!-- Track Grid -->
+                        <div id="tracks-list" class="tracks-list hidden"></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- macOS Shortcut Setup Modal Guide -->
+    <div id="shortcut-modal" class="modal glass-modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>macOS 快捷指令配置指引</h3>
+                <button id="btn-modal-close" class="modal-close-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p>由于 Apple Music API 在没有付费开发者账号时无法直接用本地网页控制，我们使用 macOS 自带的 <strong>快捷指令 (Shortcuts)</strong> 一键同步。这完全免费且非常安全。</p>
+                
+                <div class="steps-container">
+                    <div class="step-item">
+                        <span class="step-num">1</span>
+                        <div class="step-text">
+                            <strong>创建快捷指令</strong>: 打开 Mac 上的“快捷指令” App，点击右上角新建，并重命名为 <code id="guide-shortcut-name">MusicCue</code> (需与设置名称完全一致)。
+                        </div>
+                    </div>
+                    <div class="step-item">
+                        <span class="step-num">2</span>
+                        <div class="step-text">
+                            <strong>配置流程节点 (添加以下 4 个动作)</strong>:
+                            <ol class="step-sublist">
+                                <li>添加 <strong>“拆分文本” (Split Text)</strong>：将 <b>“快捷指令输入” (Shortcut Input)</b> 以 <b>“换行符” (New Lines)</b> 拆分。</li>
+                                <li>添加 <strong>“重复运行每个项目” (Repeat with Each)</strong>：循环遍历拆分后的文本。</li>
+                                <li>在循环体内添加 <strong>“搜索 iTunes Store” (Search iTunes Store)</strong>：
+                                    将搜索项设为 <b>“重复项目” (Repeat Item)</b>，类别设为“歌曲”，限制改为 1，地区设为“美国”。
+                                </li>
+                                <li>在循环体内添加 <strong>“添加至‘接着播放’” (Add to Playing Next)</strong>：
+                                    将 <b>“iTunes 产品” (iTunes Products)</b> 添加到“接着播放”的 <b>“稍后” (Later)</b>。
+                                </li>
+                            </ol>
+                        </div>
+                    </div>
+                    <div class="step-item">
+                        <span class="step-num">3</span>
+                        <div class="step-text">
+                            <strong>一键后台静默同步</strong>:
+                            配置好后关闭快捷指令 App。点击下方“确认同步”按钮，系统会自动检测并调用，秒级同步推荐歌曲到你 Music 播放队列中！
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-alert">
+                    <i data-lucide="info" class="alert-icon"></i>
+                    <div class="alert-content">
+                        <strong>小贴士</strong>: 制作此快捷指令后，系统将自动变为 **一键直接同步**，下次使用无需再阅读此弹窗教程。
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="btn-confirm-sync" class="btn btn-primary">确认开始同步</button>
+                <button id="btn-modal-cancel" class="btn btn-secondary">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Floating Bottom Preview Player Bar -->
+    <div id="bottom-player" class="bottom-player hidden">
+        <div class="player-content-wrapper">
+            <div class="player-content">
+                <!-- Track Details -->
+                <div class="player-left">
+                    <div class="player-artwork-container">
+                        <img id="player-artwork" src="/static/placeholder.svg" alt="Cover" class="player-artwork" />
+                        <div class="player-artwork-glow"></div>
+                    </div>
+                    <div class="player-meta">
+                        <div class="player-title-row">
+                            <span id="player-title" class="player-title">未在播放</span>
+                            <span id="player-native-title" class="original-title-badge"></span>
+                        </div>
+                        <span id="player-artist" class="player-artist">无</span>
+                    </div>
+                </div>
+
+                <!-- Playback Timeline & Buttons -->
+                <div class="player-center">
+                    <div class="player-controls">
+                        <button id="btn-player-prev" class="btn-player-control" title="上一首">
+                            <i data-lucide="skip-back"></i>
+                        </button>
+                        <button id="btn-player-play" class="btn-player-control btn-play-main" title="播放/暂停">
+                            <i data-lucide="play" class="play-icon-main"></i>
+                        </button>
+                        <button id="btn-player-next" class="btn-player-control" title="下一首">
+                            <i data-lucide="skip-forward"></i>
+                        </button>
+                    </div>
+                    <div class="player-timeline">
+                        <span id="player-current-time" class="time-label">0:00</span>
+                        <div class="timeline-slider-container">
+                            <input type="range" id="player-progress" class="timeline-slider" min="0" max="30" value="0" step="0.1" />
+                            <div class="timeline-progress-bar" id="player-progress-bar"></div>
+                        </div>
+                        <span id="player-total-time" class="time-label">0:30</span>
+                    </div>
+                </div>
+
+                <!-- Volume & Extra Controls -->
+                <div class="player-right">
+                    <div class="player-volume">
+                        <button id="btn-player-volume" class="btn-player-control" title="静音">
+                            <i data-lucide="volume-2" class="volume-icon"></i>
+                        </button>
+                        <div class="volume-slider-container">
+                            <input type="range" id="player-volume-slider" class="volume-slider" min="0" max="1" value="0.5" step="0.05" />
+                            <div class="volume-progress-bar" id="player-volume-progress"></div>
+                        </div>
+                    </div>
+                    <button id="btn-player-close" class="btn-player-control btn-close-player" title="关闭播放器">
+                        <i data-lucide="x"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Audio element for player previews -->
+    <audio id="global-preview-player" style="display:none;"></audio>
+
+    <script src="/static/app.js?v=20260615T1651"></script>
+</body>
+</html>
