@@ -41,6 +41,8 @@ class RecommendRequest(BaseModel):
     topArtists: List[str] = []
     topTracks: List[str] = []
     topGenres: List[str] = []
+    provider: str = "gemini"
+    excludeTracks: List[str] = []
 
 
 def call_gemini_api(api_key: str, prompt: str, temperature: float) -> str:
@@ -154,6 +156,50 @@ def call_gemini_api_http(api_key: str, prompt: str, temperature: float) -> str:
                 time.sleep(1.5 * (attempt + 1))
                 
     raise HTTPException(status_code=500, detail=f"Gemini HTTP Fallback Error (after {max_retries} attempts): {str(last_error)}")
+
+
+def call_openai_compatible_api(api_key: str, prompt: str, temperature: float, base_url: str, model_name: str) -> str:
+    """
+    Calls an OpenAI-compatible API using standard urllib.request.
+    """
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    }
+    payload = {
+        "model": model_name,
+        "messages": [
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        "temperature": temperature,
+        "response_format": {"type": "json_object"}
+    }
+    
+    max_retries = 3
+    last_error = None
+    
+    for attempt in range(max_retries):
+        req = urllib.request.Request(
+            base_url, 
+            data=json.dumps(payload).encode("utf-8"), 
+            headers=headers, 
+            method="POST"
+        )
+        try:
+            with urllib.request.urlopen(req) as response:
+                res_data = json.loads(response.read().decode("utf-8"))
+                text = res_data["choices"][0]["message"]["content"]
+                return text
+        except Exception as e:
+            last_error = e
+            print(f"API attempt {attempt + 1} for model {model_name} failed: {e}. Retrying...")
+            if attempt < max_retries - 1:
+                time.sleep(1.5 * (attempt + 1))
+                
+    raise HTTPException(status_code=500, detail=f"API Error for model {model_name} (after {max_retries} attempts): {str(last_error)}")
 
 
 @app.post("/api/parse-file")
@@ -327,10 +373,10 @@ def parse_csv_data(contents: bytes) -> dict:
 @app.post("/api/recommend")
 async def recommend(req: RecommendRequest):
     """
-    Formulates a prompt for Gemini and returns song recommendations in JSON format.
+    Formulates a prompt for the AI provider and returns song recommendations in JSON format.
     """
     if not req.apiKey:
-        raise HTTPException(status_code=400, detail="Gemini API Key is required")
+        raise HTTPException(status_code=400, detail=f"API Key is required for provider '{req.provider}'")
 
     # Construct the user taste profile string
     taste_profile = []
@@ -343,6 +389,11 @@ async def recommend(req: RecommendRequest):
         
     taste_str = "\n".join(taste_profile) if taste_profile else "No listening profile provided (starting fresh)."
 
+    exclude_str = ""
+    if req.excludeTracks:
+        exclude_list = "\n".join([f"- {track}" for track in req.excludeTracks])
+        exclude_str = f"\n\n[Exclude Tracks]\nDo NOT recommend any of the following songs (or close variations/covers) to ensure variety:\n{exclude_list}"
+
     prompt = f"""You are a professional music curator and recommendation expert.
 The user wants a personalized playlist recommendation based on their music taste and a specific scenario.
 
@@ -350,7 +401,7 @@ The user wants a personalized playlist recommendation based on their music taste
 {taste_str}
 
 [Target Scenario/Vibe]
-"{req.scenario}"
+"{req.scenario}"{exclude_str}
 
 [Apple Music Storefront Region]
 {req.region.upper()} (User uses a {req.region.upper()} region account)
@@ -362,6 +413,7 @@ The user wants a personalized playlist recommendation based on their music taste
    - Provide the English or Romanized/Pinyin title and artist name commonly used in the {req.region.upper()} store (in the `title` and `artist` fields).
    - If the track is in a non-English language (e.g., Chinese, Japanese), specify the original native title and native artist name in `original_title` and `original_artist` respectively. This is essential for search fallback.
 4. For each song, provide a clear, one-sentence description (`reason`) explaining why this song fits the scenario and taste. Write the `reason` in Chinese (简体中文).
+5. Crucial variety: If [Exclude Tracks] is provided, you MUST NOT recommend any of the songs listed there to ensure variety.
 
 Return the recommendations as a JSON object matching this schema:
 {{
@@ -377,14 +429,33 @@ Return the recommendations as a JSON object matching this schema:
 }}
 """
 
-    response_text = call_gemini_api(req.apiKey, prompt, req.temperature)
+    if req.provider == "gemini":
+        response_text = call_gemini_api(req.apiKey, prompt, req.temperature)
+    elif req.provider == "openai":
+        response_text = call_openai_compatible_api(
+            api_key=req.apiKey,
+            prompt=prompt,
+            temperature=req.temperature,
+            base_url="https://api.openai.com/v1/chat/completions",
+            model_name="gpt-4o-mini"
+        )
+    elif req.provider == "deepseek":
+        response_text = call_openai_compatible_api(
+            api_key=req.apiKey,
+            prompt=prompt,
+            temperature=req.temperature,
+            base_url="https://api.deepseek.com/chat/completions",
+            model_name="deepseek-chat"
+        )
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {req.provider}")
     
     try:
         data = json.loads(response_text)
         return data
     except Exception as e:
         # If parsing fails, return raw text as error context
-        raise HTTPException(status_code=500, detail=f"Failed to parse Gemini JSON output: {str(e)}. Raw output: {response_text}")
+        raise HTTPException(status_code=500, detail=f"Failed to parse {req.provider} JSON output: {str(e)}. Raw output: {response_text}")
 
 
 @app.post("/api/search")

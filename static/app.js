@@ -1,25 +1,58 @@
 // Global state management
 const state = {
-    apiKey: localStorage.getItem("musiccue_api_key") || "",
+    activeProvider: localStorage.getItem("musiccue_active_provider") || "gemini",
+    geminiApiKey: localStorage.getItem("musiccue_gemini_api_key") || localStorage.getItem("musiccue_api_key") || "",
+    openaiApiKey: localStorage.getItem("musiccue_openai_api_key") || "",
+    deepseekApiKey: localStorage.getItem("musiccue_deepseek_api_key") || "",
     shortcutName: localStorage.getItem("musiccue_shortcut_name") || "MusicCue",
     tasteProfile: null, // Holds parsed XML/CSV stats
-    recommendedTracks: [], // Holds raw recommendations from Gemini
+    recommendedTracks: [], // Holds raw recommendations from AI engine
     resolvedTracks: [], // Holds resolved track details from iTunes API
     playingTrackIndex: null, // Current playing track index in resolvedTracks
     installedShortcuts: [], // List of macOS Shortcuts
     volume: parseFloat(localStorage.getItem("musiccue_volume") || "0.5")
 };
 
+// Toggle API key fields visibility based on active provider
+function updateApiKeyVisibility() {
+    const groups = document.querySelectorAll(".provider-key-group");
+    groups.forEach(group => group.classList.add("hidden"));
+
+    const activeGroup = document.getElementById(`group-key-${state.activeProvider}`);
+    if (activeGroup) {
+        activeGroup.classList.remove("hidden");
+    }
+}
+
 // Initialize elements on load
 document.addEventListener("DOMContentLoaded", () => {
     // Initialize Lucide Icons
     lucide.createIcons();
 
-    // Populate values from local storage
-    const apiKeyInput = document.getElementById("input-api-key");
-    if (state.apiKey && apiKeyInput) {
-        apiKeyInput.value = state.apiKey;
+    // Highlight the active provider button/tab during load
+    const activeBtn = document.querySelector(`.provider-btn[data-provider="${state.activeProvider}"]`);
+    if (activeBtn) {
+        document.querySelectorAll(".provider-btn").forEach(b => b.classList.remove("active"));
+        activeBtn.classList.add("active");
     }
+
+    const geminiKeyInput = document.getElementById("input-key-gemini");
+    if (geminiKeyInput) {
+        geminiKeyInput.value = state.geminiApiKey;
+    }
+
+    const openaiKeyInput = document.getElementById("input-key-openai");
+    if (openaiKeyInput) {
+        openaiKeyInput.value = state.openaiApiKey;
+    }
+
+    const deepseekKeyInput = document.getElementById("input-key-deepseek");
+    if (deepseekKeyInput) {
+        deepseekKeyInput.value = state.deepseekApiKey;
+    }
+
+    // Show/hide API key inputs dynamically based on active provider
+    updateApiKeyVisibility();
 
     const shortcutInput = document.getElementById("input-shortcut-name");
     if (shortcutInput) {
@@ -160,7 +193,10 @@ function setupEventListeners() {
     const btnSettingsToggle = document.getElementById("btn-settings-toggle");
     const btnSettingsClose = document.getElementById("btn-settings-close");
     const settingsCard = document.getElementById("settings-card");
-    const apiKeyInput = document.getElementById("input-api-key");
+    const providerBtns = document.querySelectorAll(".provider-btn");
+    const geminiKeyInput = document.getElementById("input-key-gemini");
+    const openaiKeyInput = document.getElementById("input-key-openai");
+    const deepseekKeyInput = document.getElementById("input-key-deepseek");
     const shortcutInput = document.getElementById("input-shortcut-name");
 
     btnSettingsToggle.addEventListener("click", () => {
@@ -171,11 +207,40 @@ function setupEventListeners() {
         settingsCard.classList.add("hidden");
     });
 
-    apiKeyInput.addEventListener("input", (e) => {
-        state.apiKey = e.target.value.trim();
-        localStorage.setItem("musiccue_api_key", state.apiKey);
-        updateApiStatusBadge();
+    providerBtns.forEach(btn => {
+        btn.addEventListener("click", () => {
+            providerBtns.forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            state.activeProvider = btn.getAttribute("data-provider");
+            localStorage.setItem("musiccue_active_provider", state.activeProvider);
+            updateApiKeyVisibility();
+            updateApiStatusBadge();
+        });
     });
+
+    if (geminiKeyInput) {
+        geminiKeyInput.addEventListener("input", (e) => {
+            state.geminiApiKey = e.target.value.trim();
+            localStorage.setItem("musiccue_gemini_api_key", state.geminiApiKey);
+            updateApiStatusBadge();
+        });
+    }
+
+    if (openaiKeyInput) {
+        openaiKeyInput.addEventListener("input", (e) => {
+            state.openaiApiKey = e.target.value.trim();
+            localStorage.setItem("musiccue_openai_api_key", state.openaiApiKey);
+            updateApiStatusBadge();
+        });
+    }
+
+    if (deepseekKeyInput) {
+        deepseekKeyInput.addEventListener("input", (e) => {
+            state.deepseekApiKey = e.target.value.trim();
+            localStorage.setItem("musiccue_deepseek_api_key", state.deepseekApiKey);
+            updateApiStatusBadge();
+        });
+    }
 
     shortcutInput.addEventListener("input", (e) => {
         state.shortcutName = e.target.value.trim() || "MusicCue";
@@ -244,8 +309,11 @@ function setupEventListeners() {
         btnResetProfile.addEventListener("click", () => {
             state.tasteProfile = null;
             
+            // Clear recommendation deduplication history
+            localStorage.removeItem("musiccue_rec_history");
+            
             // Show tabs again
-            document.querySelector(".tabs").classList.remove("hidden");
+            document.querySelector(".full-height-card .tabs").classList.remove("hidden");
             
             // Determine active tab and show it
             const activeTab = document.querySelector(".tab-btn.active").getAttribute("data-tab");
@@ -257,7 +325,7 @@ function setupEventListeners() {
             // Clear file input value
             document.getElementById("csv-file-input").value = "";
             
-            showToast("画像已清除", "您现在可以重新上传文件或输入歌手", "info");
+            showToast("画像已清除", "您现在可以重新上传文件或输入歌手，排重历史已重置", "info");
         });
     }
 
@@ -552,7 +620,7 @@ async function handleCsvFile(file) {
 // Render the parsed taste tags
 function renderTasteProfile(data) {
     // Hide upload UI elements to reclaim vertical space
-    document.querySelector(".tabs").classList.add("hidden");
+    document.querySelector(".full-height-card .tabs").classList.add("hidden");
     document.getElementById("tab-csv").classList.add("hidden");
     document.getElementById("tab-manual").classList.add("hidden");
 
@@ -591,10 +659,23 @@ async function handleGenerateRecommendations() {
     const limit = parseInt(document.getElementById("input-limit").value) || 15;
     const temperature = parseFloat(document.getElementById("input-temp").value) || 0.7;
 
-    // Check key
-    if (!state.apiKey) {
+    // Get active key and check it
+    let activeKey = "";
+    let providerName = "";
+    if (state.activeProvider === "gemini") {
+        activeKey = state.geminiApiKey;
+        providerName = "Gemini";
+    } else if (state.activeProvider === "openai") {
+        activeKey = state.openaiApiKey;
+        providerName = "OpenAI";
+    } else if (state.activeProvider === "deepseek") {
+        activeKey = state.deepseekApiKey;
+        providerName = "DeepSeek";
+    }
+
+    if (!activeKey) {
         document.getElementById("settings-card").classList.remove("hidden");
-        showToast("需要 API Key", "请在服务配置中填写 Gemini API Key", "error");
+        showToast("需要 API Key", `请在服务配置中填写 ${providerName} API Key`, "error");
         return;
     }
 
@@ -624,7 +705,7 @@ async function handleGenerateRecommendations() {
     
     loader.classList.remove("hidden");
     document.getElementById("loader-title").textContent = "正在生成音乐推荐...";
-    document.getElementById("loader-subtitle").textContent = "[步骤 1/2] 正在向 Gemini 推荐引擎提交脑暴请求...";
+    document.getElementById("loader-subtitle").textContent = `[步骤 1/2] 正在向 ${providerName} 推荐引擎提交脑暴请求...`;
 
     // Determine taste input (manual or parsed XML/CSV)
     let topArtists = [];
@@ -644,16 +725,21 @@ async function handleGenerateRecommendations() {
     }
 
     try {
-        // Step 1: Request Gemini Recommendations
+        // Load recommendation history for deduplication
+        const excludeTracks = JSON.parse(localStorage.getItem("musiccue_rec_history") || "[]");
+
+        // Step 1: Request Recommendations
         const recPayload = {
-            apiKey: state.apiKey,
+            apiKey: activeKey,
+            provider: state.activeProvider,
             scenario: scenario,
             region: region,
             limit: limit,
             temperature: temperature,
             topArtists: topArtists,
             topTracks: topTracks,
-            topGenres: topGenres
+            topGenres: topGenres,
+            excludeTracks: excludeTracks
         };
 
         const recResponse = await fetch("/api/recommend", {
@@ -671,7 +757,19 @@ async function handleGenerateRecommendations() {
         state.recommendedTracks = recData.recommendations || [];
 
         if (state.recommendedTracks.length === 0) {
-            throw new Error("Gemini 未能生成有效的歌曲推荐，请调整描述后重试。");
+            throw new Error(`${providerName} 未能生成有效的歌曲推荐，请调整描述后重试。`);
+        }
+
+        // Add newly recommended songs to history (max 50)
+        try {
+            const newTrackStrings = state.recommendedTracks.map(t => `${t.title} - ${t.artist}`);
+            let history = JSON.parse(localStorage.getItem("musiccue_rec_history") || "[]");
+            // Merge, deduplicate, and limit to 50
+            history = [...newTrackStrings, ...history];
+            history = [...new Set(history)].slice(0, 50);
+            localStorage.setItem("musiccue_rec_history", JSON.stringify(history));
+        } catch (e) {
+            console.error("Failed to update recommendation history:", e);
         }
 
         // Step 2: Query iTunes API for recommendations metadata
@@ -1023,8 +1121,17 @@ function updateApiStatusBadge() {
     const badge = document.getElementById("api-status-badge");
     if (!badge) return;
     
+    let keyConfigured = false;
+    if (state.activeProvider === "gemini" && state.geminiApiKey) {
+        keyConfigured = true;
+    } else if (state.activeProvider === "openai" && state.openaiApiKey) {
+        keyConfigured = true;
+    } else if (state.activeProvider === "deepseek" && state.deepseekApiKey) {
+        keyConfigured = true;
+    }
+
     const text = badge.querySelector(".badge-text");
-    if (state.apiKey) {
+    if (keyConfigured) {
         badge.className = "badge-status badge-resolved";
         text.textContent = "Key 已配置";
     } else {

@@ -11,14 +11,14 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/static/style.css?v=20260615T1651">
+    <link rel="stylesheet" href="/static/style.css?v=20260615T1810">
 </head>
-<body>
-    <!-- Animated background mesh -->
-    <div class="mesh-bg">
-        <div class="mesh-orb mesh-1"></div>
-        <div class="mesh-orb mesh-2"></div>
-        <div class="mesh-orb mesh-3"></div>
+<body class="theme-light">
+    <!-- Mesh Gradient Backdrops -->
+    <div class="mesh-container">
+        <div class="mesh-orb orb-1"></div>
+        <div class="mesh-orb orb-2"></div>
+        <div class="mesh-orb orb-3"></div>
     </div>
     <div class="glass-bg"></div>
 
@@ -28,27 +28,30 @@
     <div class="app-container">
         <!-- Header -->
         <header class="app-header">
-            <div class="brand">
-                <div class="brand-icon-wrapper">
-                    <i data-lucide="music-4" class="brand-icon"></i>
-                    <div class="brand-icon-glow"></div>
-                </div>
+            <div class="brand-container">
+                <span class="brand-emoji">🎧</span>
                 <div class="brand-text">
                     <h1>MusicCue</h1>
-                    <span>Personalized Apple Music Engine</span>
+                    <p>智能听歌画像与 Apple Music 同步引擎</p>
                 </div>
             </div>
 
             <!-- API Settings in Header -->
             <div class="settings-trigger-container">
-                <div id="api-status-badge" class="badge-status badge-unresolved">
-                    <span class="status-dot"></span>
-                    <span class="badge-text">Key 未配置</span>
-                </div>
-                <button id="btn-settings-toggle" class="btn btn-icon-label" title="设置">
-                    <i data-lucide="settings"></i>
-                    <span>服务配置</span>
+                <button id="btn-generate" class="btn btn-primary">
+                    <i data-lucide="sparkles"></i>
+                    <span>开始生成推荐</span>
                 </button>
+                <div class="settings-btn-stack">
+                    <div id="api-status-badge" class="badge-status badge-unresolved">
+                        <span class="status-dot"></span>
+                        <span class="badge-text">Key 未配置</span>
+                    </div>
+                    <button id="btn-settings-toggle" class="btn btn-icon-label" title="设置">
+                        <i data-lucide="settings"></i>
+                        <span>服务配置</span>
+                    </button>
+                </div>
             </div>
         </header>
 
@@ -65,16 +68,52 @@
                         <button id="btn-settings-close" class="btn-close">&times;</button>
                     </div>
                     <div class="card-body">
+                        <!-- Provider Selection -->
                         <div class="form-group">
-                            <label for="input-api-key">Gemini API Key</label>
+                            <label>AI 模型服务商</label>
+                            <div class="provider-selector tabs" style="margin-bottom: 0;">
+                                <button type="button" class="provider-btn tab-btn active" data-provider="gemini">Gemini</button>
+                                <button type="button" class="provider-btn tab-btn" data-provider="openai">OpenAI</button>
+                                <button type="button" class="provider-btn tab-btn" data-provider="deepseek">DeepSeek</button>
+                            </div>
+                        </div>
+
+                        <!-- Gemini API Key -->
+                        <div class="form-group provider-key-group" id="group-key-gemini">
+                            <label for="input-key-gemini">Gemini API Key</label>
                             <div class="input-wrapper">
                                 <i data-lucide="key-round" class="input-icon"></i>
-                                <input type="password" id="input-api-key" placeholder="AI Studio 获取 of API 密钥" />
+                                <input type="password" id="input-key-gemini" placeholder="AI Studio 获取的 API 密钥" />
                             </div>
                             <small class="helper-text">
                                 可在 <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a> 免费获取。密钥安全存储在您的本地浏览器。
                             </small>
                         </div>
+                        
+                        <!-- OpenAI API Key -->
+                        <div class="form-group provider-key-group hidden" id="group-key-openai">
+                            <label for="input-key-openai">OpenAI API Key</label>
+                            <div class="input-wrapper">
+                                <i data-lucide="key-round" class="input-icon"></i>
+                                <input type="password" id="input-key-openai" placeholder="sk-... 格式的 API 密钥" />
+                            </div>
+                            <small class="helper-text">
+                                密钥安全存储在您的本地浏览器。支持 `gpt-4o-mini` 模型。
+                            </small>
+                        </div>
+
+                        <!-- DeepSeek API Key -->
+                        <div class="form-group provider-key-group hidden" id="group-key-deepseek">
+                            <label for="input-key-deepseek">DeepSeek API Key</label>
+                            <div class="input-wrapper">
+                                <i data-lucide="key-round" class="input-icon"></i>
+                                <input type="password" id="input-key-deepseek" placeholder="sk-... 格式的 API 密钥" />
+                            </div>
+                            <small class="helper-text">
+                                密钥安全存储在您的本地浏览器。支持 `deepseek-chat` 模型。
+                            </small>
+                        </div>
+
                         <div class="form-group" style="margin-bottom: 0;">
                             <label for="input-shortcut-name">Mac 快捷指令名称</label>
                             <div class="input-wrapper">
@@ -231,11 +270,6 @@
                             </div>
                         </details>
 
-                        <!-- Actions -->
-                        <button id="btn-generate" class="btn btn-primary btn-block btn-lg" style="margin-top: 10px;">
-                            <i data-lucide="sparkles"></i>
-                            <span>开始生成推荐</span>
-                        </button>
                     </div>
                 </div>
             </section>
