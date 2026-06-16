@@ -55,6 +55,12 @@ def build():
     print("Creating symbolic link to /Applications...")
     os.symlink("/Applications", os.path.join(dmg_temp_dir, "Applications"))
     
+    # Copy MusicCue.shortcut to DMG root directory
+    print("Copying MusicCue.shortcut to DMG root...")
+    shortcut_src = os.path.join("shortcuts", "MusicCue.shortcut")
+    if os.path.exists(shortcut_src):
+        shutil.copy(shortcut_src, os.path.join(dmg_temp_dir, "MusicCue.shortcut"))
+    
     # Call native hdiutil to build read-only DMG
     print("Running hdiutil to create DMG...")
     hdiutil_cmd = [

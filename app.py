@@ -588,6 +588,25 @@ async def get_shortcuts():
         return {"status": "error", "message": str(e), "shortcuts": []}
 
 
+@app.post("/api/install-shortcut")
+async def install_shortcut():
+    """
+    Triggers macOS to open the packaged .shortcut file, invoking the system import flow.
+    """
+    try:
+        shortcut_path = os.path.join(BASE_DIR, "shortcuts", "MusicCue.shortcut")
+        if not os.path.exists(shortcut_path):
+            raise HTTPException(status_code=404, detail="快捷指令打包文件未找到。")
+        
+        # Trigger macOS 'open' command which imports the .shortcut file
+        subprocess.run(["open", shortcut_path])
+        return {"status": "success", "message": "已打开快捷指令安装界面，请在系统弹窗中确认添加。"}
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"无法启动安装程序: {str(e)}")
+
+
 
 class SyncRequest(BaseModel):
     playlistName: str = "MusicCue"

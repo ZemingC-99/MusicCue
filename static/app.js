@@ -384,6 +384,37 @@ function setupEventListeners() {
         handleSyncPlaylist();
     });
 
+    // Import shortcut button logic
+    const btnImportShortcut = document.getElementById("btn-import-shortcut");
+    if (btnImportShortcut) {
+        btnImportShortcut.addEventListener("click", async () => {
+            try {
+                btnImportShortcut.disabled = true;
+                const originalText = btnImportShortcut.innerHTML;
+                btnImportShortcut.innerHTML = `<i data-lucide="loader-2" class="animate-spin"></i><span>正在打开安装界面...</span>`;
+                if (window.lucide) lucide.createIcons();
+                
+                const response = await fetch("/api/install-shortcut", { method: "POST" });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showToast(result.message || "已打开快捷指令安装界面，请在系统弹窗中确认添加。", "success");
+                } else {
+                    showToast(result.detail || "一键导入失败，请双击 DMG 磁盘中的 MusicCue.shortcut 文件安装。", "error");
+                }
+                
+                btnImportShortcut.innerHTML = originalText;
+                if (window.lucide) lucide.createIcons();
+            } catch (err) {
+                showToast("连接服务失败，请双击 DMG 中的 MusicCue.shortcut 文件安装。", "error");
+                btnImportShortcut.innerHTML = `<i data-lucide="download"></i><span>一键导入 MusicCue 快捷指令</span>`;
+                if (window.lucide) lucide.createIcons();
+            } finally {
+                btnImportShortcut.disabled = false;
+            }
+        });
+    }
+
     // Select All Checkbox
     const chkSelectAll = document.getElementById("chk-select-all");
     if (chkSelectAll) {

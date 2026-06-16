@@ -348,6 +348,16 @@
             </div>
             <div class="modal-body">
                 <p>由于 Apple Music API 在没有付费开发者账号时无法直接用本地网页控制，我们使用 macOS 自带的 <strong>快捷指令 (Shortcuts)</strong> 一键同步。这完全免费且非常安全。</p>
+
+                <!-- One-click Install Packaged Shortcut -->
+                <div class="shortcut-import-box" style="margin: 20px 0; padding: 16px; background: rgba(71, 85, 105, 0.04); border-radius: 14px; display: flex; flex-direction: column; align-items: center; gap: 10px; border: 1px solid rgba(71, 85, 105, 0.08);">
+                    <p style="font-weight: 500; font-size: 13.5px; text-align: center; color: var(--text-primary);">我们已为您打包了现成的快捷指令文件，点击下方即可导入：</p>
+                    <button id="btn-import-shortcut" class="btn btn-primary" style="margin: 0; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <i data-lucide="download"></i>
+                        <span>一键导入 MusicCue 快捷指令</span>
+                    </button>
+                    <p style="font-size: 11.5px; color: var(--text-secondary); text-align: center;">您也可以在打开的 DMG 安装包中，直接双击 <strong>MusicCue.shortcut</strong> 进行导入。</p>
+                </div>
                 
                 <div class="steps-container">
                     <div class="step-item">
