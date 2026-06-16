@@ -28,6 +28,7 @@ static_dir = os.path.join(BASE_DIR, "static")
 
 CONFIG_DIR = os.path.expanduser('~/Library/Application Support/MusicCue')
 CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json')
+TASTE_PROFILE_FILE = os.path.join(CONFIG_DIR, 'taste_profile.json')
 
 # Serve frontend files from the static directory
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
@@ -100,6 +101,48 @@ async def save_config(req: SaveConfigReq):
         return {"status": "success"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"保存配置失败: {str(e)}")
+
+
+@app.get("/api/taste-profile")
+async def get_taste_profile():
+    """
+    Reads local taste profile JSON file and returns it.
+    """
+    try:
+        if os.path.exists(TASTE_PROFILE_FILE):
+            with open(TASTE_PROFILE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {"status": "empty"}
+    except Exception as e:
+        print(f"Error reading taste profile: {e}")
+        return {"status": "empty"}
+
+
+@app.post("/api/taste-profile")
+async def save_taste_profile(profile: dict):
+    """
+    Saves taste profile to local JSON file.
+    """
+    try:
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        with open(TASTE_PROFILE_FILE, "w", encoding="utf-8") as f:
+            json.dump(profile, f, indent=4, ensure_ascii=False)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"保存听歌画像失败: {str(e)}")
+
+
+@app.delete("/api/taste-profile")
+async def delete_taste_profile():
+    """
+    Deletes the local taste profile JSON file.
+    """
+    try:
+        if os.path.exists(TASTE_PROFILE_FILE):
+            os.remove(TASTE_PROFILE_FILE)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"清除听歌画像失败: {str(e)}")
 
 
 class RecommendRequest(BaseModel):

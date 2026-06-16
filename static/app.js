@@ -54,6 +54,22 @@ async function saveBackendConfig(patch) {
     }
 }
 
+// Fetch taste profile from backend to restore state on startup
+async function loadBackendTasteProfile() {
+    try {
+        const response = await fetch("/api/taste-profile");
+        if (response.ok) {
+            const data = await response.json();
+            if (data && data.status !== "empty") {
+                state.tasteProfile = data;
+                renderTasteProfile(data);
+            }
+        }
+    } catch (e) {
+        console.error("Failed to load backend taste profile:", e);
+    }
+}
+
 // Toggle API key fields visibility based on active provider
 function updateApiKeyVisibility() {
     const groups = document.querySelectorAll(".provider-key-group");
@@ -72,6 +88,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Fetch config from backend to override default/local storage values
     await loadBackendConfig();
+
+    // Fetch taste profile from backend
+    await loadBackendTasteProfile();
 
     // Highlight the active provider button/tab during load
     const activeBtn = document.querySelector(`.provider-btn[data-provider="${state.activeProvider}"]`);
@@ -403,6 +422,9 @@ function setupEventListeners() {
         btnResetProfile.addEventListener("click", () => {
             state.tasteProfile = null;
             
+            // Clear profile in Python backend
+            fetch("/api/taste-profile", { method: "DELETE" }).catch(err => console.error("Failed to delete taste profile:", err));
+            
             // Clear recommendation deduplication history
             localStorage.removeItem("musiccue_rec_history");
             
@@ -729,6 +751,15 @@ async function handleCsvFile(file) {
         // Render profile summary tags
         renderTasteProfile(data);
         showToast("导入成功", `成功分析 ${data.counts.totalPlays} 次历史听歌记录`, "success");
+        
+        // Save taste profile to backend config folder
+        fetch("/api/taste-profile", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(data)
+        }).catch(err => console.error("Failed to save taste profile to backend:", err));
         
         // Hide loader and reset visual state
         defaultContent.classList.remove("hidden");
