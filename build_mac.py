@@ -17,6 +17,8 @@ def build():
         "--name=MusicCue",
         "--noconsole",
         "--clean",
+        "--noconfirm",
+        "--icon=MusicCue.icns",
         "--add-data=static:static",
         "--add-data=shortcuts:shortcuts",
         "app.py"
