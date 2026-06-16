@@ -1,4 +1,5 @@
 import os
+import sys
 import csv
 import json
 import urllib.request
@@ -17,19 +18,131 @@ from pydantic import BaseModel
 
 app = FastAPI(title="MusicCue - Custom Apple Music Recommendation")
 
+# Support PyInstaller absolute resource extraction directory path
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    BASE_DIR = sys._MEIPASS
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+static_dir = os.path.join(BASE_DIR, "static")
+
+CONFIG_DIR = os.path.expanduser('~/Library/Application Support/MusicCue')
+CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json')
+TASTE_PROFILE_FILE = os.path.join(CONFIG_DIR, 'taste_profile.json')
+
 # Serve frontend files from the static directory
-app.mount("/static", StaticFiles(directory="/Users/imaginist__/scratch/apple_music_rec/static"), name="static")
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def get_index(response: Response):
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
-    index_path = "/Users/imaginist__/scratch/apple_music_rec/static/index.html"
+    index_path = os.path.join(static_dir, "index.html")
     if os.path.exists(index_path):
         with open(index_path, "r", encoding="utf-8") as f:
             return f.read()
     return "<h1>MusicCue Frontend Not Found. Please build frontend files.</h1>"
+
+
+class SaveConfigReq(BaseModel):
+    activeProvider: Optional[str] = None
+    geminiApiKey: Optional[str] = None
+    openaiApiKey: Optional[str] = None
+    deepseekApiKey: Optional[str] = None
+    shortcutName: Optional[str] = None
+    volume: Optional[float] = None
+
+
+@app.get("/api/config")
+async def get_config():
+    """
+    Reads local configuration file JSON and returns it.
+    """
+    try:
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"Error reading config: {e}")
+    return {
+        "activeProvider": "gemini",
+        "geminiApiKey": "",
+        "openaiApiKey": "",
+        "deepseekApiKey": "",
+        "shortcutName": "MusicCue",
+        "volume": 0.5
+    }
+
+
+@app.post("/api/config")
+async def save_config(req: SaveConfigReq):
+    """
+    Saves or merges configuration into local JSON file.
+    """
+    try:
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        current_config = {}
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    current_config = json.load(f)
+            except Exception:
+                pass
+                
+        # Merge new parameters
+        req_dict = req.dict(exclude_unset=True)
+        for k, v in req_dict.items():
+            current_config[k] = v
+            
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(current_config, f, indent=4, ensure_ascii=False)
+            
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"保存配置失败: {str(e)}")
+
+
+@app.get("/api/taste-profile")
+async def get_taste_profile():
+    """
+    Reads local taste profile JSON file and returns it.
+    """
+    try:
+        if os.path.exists(TASTE_PROFILE_FILE):
+            with open(TASTE_PROFILE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {"status": "empty"}
+    except Exception as e:
+        print(f"Error reading taste profile: {e}")
+        return {"status": "empty"}
+
+
+@app.post("/api/taste-profile")
+async def save_taste_profile(profile: dict):
+    """
+    Saves taste profile to local JSON file.
+    """
+    try:
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        with open(TASTE_PROFILE_FILE, "w", encoding="utf-8") as f:
+            json.dump(profile, f, indent=4, ensure_ascii=False)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"保存听歌画像失败: {str(e)}")
+
+
+@app.delete("/api/taste-profile")
+async def delete_taste_profile():
+    """
+    Deletes the local taste profile JSON file.
+    """
+    try:
+        if os.path.exists(TASTE_PROFILE_FILE):
+            os.remove(TASTE_PROFILE_FILE)
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"清除听歌画像失败: {str(e)}")
 
 
 class RecommendRequest(BaseModel):
@@ -579,6 +692,25 @@ async def get_shortcuts():
         return {"status": "error", "message": str(e), "shortcuts": []}
 
 
+@app.post("/api/install-shortcut")
+async def install_shortcut():
+    """
+    Triggers macOS to open the packaged .shortcut file, invoking the system import flow.
+    """
+    try:
+        shortcut_path = os.path.join(BASE_DIR, "resources", "shortcuts", "MusicCue.shortcut")
+        if not os.path.exists(shortcut_path):
+            raise HTTPException(status_code=404, detail="快捷指令打包文件未找到。")
+        
+        # Trigger macOS 'open' command which imports the .shortcut file
+        subprocess.run(["open", shortcut_path])
+        return {"status": "success", "message": "已打开快捷指令安装界面，请在系统弹窗中确认添加。"}
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"无法启动安装程序: {str(e)}")
+
+
 
 class SyncRequest(BaseModel):
     playlistName: str = "MusicCue"
@@ -647,3 +779,55 @@ async def sync_playlist(req: SyncRequest):
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=500, detail=f"Sync error: {str(e)}")
+
+
+if __name__ == "__main__":
+    import threading
+    import socket
+    import time
+    import uvicorn
+    import webview
+
+    def find_free_port():
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('127.0.0.1', 0))
+        port = s.getsockname()[1]
+        s.close()
+        return port
+
+    port = find_free_port()
+
+    def run_server():
+        uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
+
+    # Dynamic port polling to check when server is active (checks every 20ms, up to 1.5s max)
+    start_time = time.time()
+    for _ in range(75):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.02)
+                s.connect(('127.0.0.1', port))
+                break
+        except Exception:
+            time.sleep(0.02)
+
+    webview.create_window(
+        title="MusicCue",
+        url=f"http://127.0.0.1:{port}",
+        width=1280,
+        height=800,
+        min_size=(1000, 700),
+        background_color='#FAFAF9'
+    )
+    storage_dir = os.path.expanduser('~/Library/Application Support/MusicCue')
+    try:
+        os.makedirs(storage_dir, exist_ok=True)
+    except Exception as e:
+        print(f"Failed to create storage directory: {e}")
+        storage_dir = None
+
+    webview.start(storage_path=storage_dir, private_mode=False)
+

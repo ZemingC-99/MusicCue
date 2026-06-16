@@ -4,12 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MusicCue - 定制音乐推荐与歌单生成</title>
-    <!-- Google Fonts -->
+    <!-- Google Fonts (Loaded asynchronously to prevent parser blocking) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" media="print" onload="this.media='all'">
+    <noscript>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Sans+SC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    </noscript>
+    <!-- Lucide Icons (Loaded locally to prevent startup latency) -->
+    <script src="/static/lucide.min.js"></script>
     <!-- Custom CSS -->
     <link rel="stylesheet" href="/static/style.css?v=20260615T1810">
 </head>
@@ -123,6 +126,16 @@
                             <small class="helper-text">
                                 本地同步时运行的 macOS 快捷指令 App 中的名称。
                             </small>
+                            <div style="display: flex; gap: 8px; margin-top: 10px;">
+                                <button type="button" id="btn-settings-import-shortcut" class="btn btn-primary" style="flex: 1; margin: 0; padding: 6px 12px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                    <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                                    <span>一键导入</span>
+                                </button>
+                                <button type="button" id="btn-settings-help-shortcut" class="btn btn-secondary" style="margin: 0; padding: 6px 12px; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                                    <i data-lucide="help-circle" style="width: 14px; height: 14px;"></i>
+                                    <span>配置指引</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -345,6 +358,16 @@
             </div>
             <div class="modal-body">
                 <p>由于 Apple Music API 在没有付费开发者账号时无法直接用本地网页控制，我们使用 macOS 自带的 <strong>快捷指令 (Shortcuts)</strong> 一键同步。这完全免费且非常安全。</p>
+
+                <!-- One-click Install Packaged Shortcut -->
+                <div class="shortcut-import-box" style="margin: 20px 0; padding: 16px; background: rgba(71, 85, 105, 0.04); border-radius: 14px; display: flex; flex-direction: column; align-items: center; gap: 10px; border: 1px solid rgba(71, 85, 105, 0.08);">
+                    <p style="font-weight: 500; font-size: 13.5px; text-align: center; color: var(--text-primary);">我们已为您打包了现成的快捷指令文件，点击下方即可导入：</p>
+                    <button id="btn-import-shortcut" class="btn btn-primary" style="margin: 0; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <i data-lucide="download"></i>
+                        <span>一键导入 MusicCue 快捷指令</span>
+                    </button>
+                    <p style="font-size: 11.5px; color: var(--text-secondary); text-align: center;">您也可以在打开的 DMG 安装包中，直接双击 <strong>MusicCue.shortcut</strong> 进行导入。</p>
+                </div>
                 
                 <div class="steps-container">
                     <div class="step-item">

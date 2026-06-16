@@ -67,7 +67,7 @@ python3 -m uvicorn app:app --port 8000 --reload
 
 仓库里已打包好快捷指令文件，直接双击安装：
 
-**[shortcuts/MusicCue.shortcut](shortcuts/MusicCue.shortcut)**
+**[resources/shortcuts/MusicCue.shortcut](resources/shortcuts/MusicCue.shortcut)**
 
 导入时确认名称为 `MusicCue`。
 

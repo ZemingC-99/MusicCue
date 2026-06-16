@@ -13,6 +13,63 @@ const state = {
     volume: parseFloat(localStorage.getItem("musiccue_volume") || "0.5")
 };
 
+// Load persistent configuration from Python backend
+async function loadBackendConfig() {
+    try {
+        const response = await fetch("/api/config");
+        if (response.ok) {
+            const config = await response.json();
+            if (config.activeProvider) state.activeProvider = config.activeProvider;
+            if (config.geminiApiKey !== undefined) state.geminiApiKey = config.geminiApiKey;
+            if (config.openaiApiKey !== undefined) state.openaiApiKey = config.openaiApiKey;
+            if (config.deepseekApiKey !== undefined) state.deepseekApiKey = config.deepseekApiKey;
+            if (config.shortcutName !== undefined) state.shortcutName = config.shortcutName;
+            if (config.volume !== undefined) state.volume = config.volume;
+            
+            // Sync fallback to localStorage for redundancy
+            localStorage.setItem("musiccue_active_provider", state.activeProvider);
+            localStorage.setItem("musiccue_gemini_api_key", state.geminiApiKey);
+            localStorage.setItem("musiccue_openai_api_key", state.openaiApiKey);
+            localStorage.setItem("musiccue_deepseek_api_key", state.deepseekApiKey);
+            localStorage.setItem("musiccue_shortcut_name", state.shortcutName);
+            localStorage.setItem("musiccue_volume", state.volume);
+        }
+    } catch (e) {
+        console.error("Failed to load backend config:", e);
+    }
+}
+
+// Save persistent configuration to Python backend
+async function saveBackendConfig(patch) {
+    try {
+        await fetch("/api/config", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(patch)
+        });
+    } catch (e) {
+        console.error("Failed to save backend config:", e);
+    }
+}
+
+// Fetch taste profile from backend to restore state on startup
+async function loadBackendTasteProfile() {
+    try {
+        const response = await fetch("/api/taste-profile");
+        if (response.ok) {
+            const data = await response.json();
+            if (data && data.status !== "empty") {
+                state.tasteProfile = data;
+                renderTasteProfile(data);
+            }
+        }
+    } catch (e) {
+        console.error("Failed to load backend taste profile:", e);
+    }
+}
+
 // Toggle API key fields visibility based on active provider
 function updateApiKeyVisibility() {
     const groups = document.querySelectorAll(".provider-key-group");
@@ -25,9 +82,15 @@ function updateApiKeyVisibility() {
 }
 
 // Initialize elements on load
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     // Initialize Lucide Icons
     lucide.createIcons();
+
+    // Fetch config from backend to override default/local storage values
+    await loadBackendConfig();
+
+    // Fetch taste profile from backend
+    await loadBackendTasteProfile();
 
     // Highlight the active provider button/tab during load
     const activeBtn = document.querySelector(`.provider-btn[data-provider="${state.activeProvider}"]`);
@@ -157,13 +220,6 @@ function updateShortcutsStatus() {
     const badge = document.getElementById("shortcuts-status");
     if (!badge) return;
 
-    // Show badge once resolved tracks exist
-    if (state.resolvedTracks.length > 0) {
-        badge.classList.remove("hidden");
-    } else {
-        badge.classList.add("hidden");
-    }
-
     const dot = badge.querySelector(".status-dot");
     const text = badge.querySelector(".status-text");
     const syncButton = document.getElementById("btn-sync");
@@ -171,19 +227,28 @@ function updateShortcutsStatus() {
     const shortcutExists = state.installedShortcuts.includes(state.shortcutName);
 
     if (shortcutExists) {
-        badge.className = "shortcuts-status-badge status-connected";
+        badge.classList.remove("status-disconnected");
+        badge.classList.add("status-connected");
         text.textContent = "快捷指令已就绪";
         if (syncButton) {
             syncButton.innerHTML = `<i data-lucide="zap"></i> <span>一键待播同步</span>`;
             lucide.createIcons();
         }
     } else {
-        badge.className = "shortcuts-status-badge status-disconnected";
+        badge.classList.remove("status-connected");
+        badge.classList.add("status-disconnected");
         text.textContent = "快捷指令未配置";
         if (syncButton) {
             syncButton.innerHTML = `<i data-lucide="help-circle"></i> <span>配置同步</span>`;
             lucide.createIcons();
         }
+    }
+
+    // Show badge once resolved tracks exist
+    if (state.resolvedTracks.length > 0) {
+        badge.classList.remove("hidden");
+    } else {
+        badge.classList.add("hidden");
     }
 }
 
@@ -213,6 +278,7 @@ function setupEventListeners() {
             btn.classList.add("active");
             state.activeProvider = btn.getAttribute("data-provider");
             localStorage.setItem("musiccue_active_provider", state.activeProvider);
+            saveBackendConfig({ activeProvider: state.activeProvider });
             updateApiKeyVisibility();
             updateApiStatusBadge();
         });
@@ -222,6 +288,7 @@ function setupEventListeners() {
         geminiKeyInput.addEventListener("input", (e) => {
             state.geminiApiKey = e.target.value.trim();
             localStorage.setItem("musiccue_gemini_api_key", state.geminiApiKey);
+            saveBackendConfig({ geminiApiKey: state.geminiApiKey });
             updateApiStatusBadge();
         });
     }
@@ -230,6 +297,7 @@ function setupEventListeners() {
         openaiKeyInput.addEventListener("input", (e) => {
             state.openaiApiKey = e.target.value.trim();
             localStorage.setItem("musiccue_openai_api_key", state.openaiApiKey);
+            saveBackendConfig({ openaiApiKey: state.openaiApiKey });
             updateApiStatusBadge();
         });
     }
@@ -238,6 +306,7 @@ function setupEventListeners() {
         deepseekKeyInput.addEventListener("input", (e) => {
             state.deepseekApiKey = e.target.value.trim();
             localStorage.setItem("musiccue_deepseek_api_key", state.deepseekApiKey);
+            saveBackendConfig({ deepseekApiKey: state.deepseekApiKey });
             updateApiStatusBadge();
         });
     }
@@ -245,6 +314,7 @@ function setupEventListeners() {
     shortcutInput.addEventListener("input", (e) => {
         state.shortcutName = e.target.value.trim() || "MusicCue";
         localStorage.setItem("musiccue_shortcut_name", state.shortcutName);
+        saveBackendConfig({ shortcutName: state.shortcutName });
         
         // Update tutorial modal code tag dynamically
         const guideName = document.getElementById("guide-shortcut-name");
@@ -254,6 +324,49 @@ function setupEventListeners() {
         
         updateShortcutsStatus();
     });
+
+    // One-click import button in Settings card
+    const btnSettingsImportShortcut = document.getElementById("btn-settings-import-shortcut");
+    if (btnSettingsImportShortcut) {
+        btnSettingsImportShortcut.addEventListener("click", async () => {
+            try {
+                btnSettingsImportShortcut.disabled = true;
+                const originalText = btnSettingsImportShortcut.innerHTML;
+                btnSettingsImportShortcut.innerHTML = `<i data-lucide="loader-2" class="animate-spin" style="width: 14px; height: 14px;"></i><span>正在打开...</span>`;
+                if (window.lucide) lucide.createIcons();
+                
+                const response = await fetch("/api/install-shortcut", { method: "POST" });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showToast(result.message || "已打开快捷指令安装界面，请在系统弹窗中确认添加。", "success");
+                } else {
+                    showToast(result.detail || "一键导入失败，请双击 DMG 磁盘中的 MusicCue.shortcut 文件安装。", "error");
+                }
+                
+                btnSettingsImportShortcut.innerHTML = originalText;
+                if (window.lucide) lucide.createIcons();
+            } catch (err) {
+                showToast("连接服务失败，请双击 DMG 中的 MusicCue.shortcut 文件安装。", "error");
+                btnSettingsImportShortcut.innerHTML = `<i data-lucide="download" style="width: 14px; height: 14px;"></i><span>一键导入</span>`;
+                if (window.lucide) lucide.createIcons();
+            } finally {
+                btnSettingsImportShortcut.disabled = false;
+            }
+        });
+    }
+
+    // Help guide button in Settings card
+    const btnSettingsHelpShortcut = document.getElementById("btn-settings-help-shortcut");
+    if (btnSettingsHelpShortcut) {
+        btnSettingsHelpShortcut.addEventListener("click", () => {
+            const modal = document.getElementById("shortcut-modal");
+            if (modal) {
+                modal.classList.remove("hidden");
+                modal.classList.add("active");
+            }
+        });
+    }
 
     // Tab Switching (XML/CSV upload vs manual)
     const tabBtns = document.querySelectorAll(".tab-btn");
@@ -308,6 +421,9 @@ function setupEventListeners() {
     if (btnResetProfile) {
         btnResetProfile.addEventListener("click", () => {
             state.tasteProfile = null;
+            
+            // Clear profile in Python backend
+            fetch("/api/taste-profile", { method: "DELETE" }).catch(err => console.error("Failed to delete taste profile:", err));
             
             // Clear recommendation deduplication history
             localStorage.removeItem("musiccue_rec_history");
@@ -383,6 +499,37 @@ function setupEventListeners() {
         closeModal();
         handleSyncPlaylist();
     });
+
+    // Import shortcut button logic
+    const btnImportShortcut = document.getElementById("btn-import-shortcut");
+    if (btnImportShortcut) {
+        btnImportShortcut.addEventListener("click", async () => {
+            try {
+                btnImportShortcut.disabled = true;
+                const originalText = btnImportShortcut.innerHTML;
+                btnImportShortcut.innerHTML = `<i data-lucide="loader-2" class="animate-spin"></i><span>正在打开安装界面...</span>`;
+                if (window.lucide) lucide.createIcons();
+                
+                const response = await fetch("/api/install-shortcut", { method: "POST" });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showToast(result.message || "已打开快捷指令安装界面，请在系统弹窗中确认添加。", "success");
+                } else {
+                    showToast(result.detail || "一键导入失败，请双击 DMG 磁盘中的 MusicCue.shortcut 文件安装。", "error");
+                }
+                
+                btnImportShortcut.innerHTML = originalText;
+                if (window.lucide) lucide.createIcons();
+            } catch (err) {
+                showToast("连接服务失败，请双击 DMG 中的 MusicCue.shortcut 文件安装。", "error");
+                btnImportShortcut.innerHTML = `<i data-lucide="download"></i><span>一键导入 MusicCue 快捷指令</span>`;
+                if (window.lucide) lucide.createIcons();
+            } finally {
+                btnImportShortcut.disabled = false;
+            }
+        });
+    }
 
     // Select All Checkbox
     const chkSelectAll = document.getElementById("chk-select-all");
@@ -523,6 +670,7 @@ function setupBottomPlayerEvents() {
         globalPlayer.volume = val;
         state.volume = val;
         localStorage.setItem("musiccue_volume", val);
+        saveBackendConfig({ volume: val });
         volumeBar.style.width = `${val * 100}%`;
         
         // Update speaker icon
@@ -603,6 +751,15 @@ async function handleCsvFile(file) {
         // Render profile summary tags
         renderTasteProfile(data);
         showToast("导入成功", `成功分析 ${data.counts.totalPlays} 次历史听歌记录`, "success");
+        
+        // Save taste profile to backend config folder
+        fetch("/api/taste-profile", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(data)
+        }).catch(err => console.error("Failed to save taste profile to backend:", err));
         
         // Hide loader and reset visual state
         defaultContent.classList.remove("hidden");
