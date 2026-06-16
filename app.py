@@ -699,5 +699,12 @@ if __name__ == "__main__":
         min_size=(1000, 700),
         background_color='#FAFAF9'
     )
-    webview.start()
+    storage_dir = os.path.expanduser('~/Library/Application Support/MusicCue')
+    try:
+        os.makedirs(storage_dir, exist_ok=True)
+    except Exception as e:
+        print(f"Failed to create storage directory: {e}")
+        storage_dir = None
+
+    webview.start(storage_path=storage_dir, private_mode=False)
 
