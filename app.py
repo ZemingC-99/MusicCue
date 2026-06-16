@@ -26,6 +26,9 @@ else:
 
 static_dir = os.path.join(BASE_DIR, "static")
 
+CONFIG_DIR = os.path.expanduser('~/Library/Application Support/MusicCue')
+CONFIG_FILE = os.path.join(CONFIG_DIR, 'config.json')
+
 # Serve frontend files from the static directory
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
@@ -39,6 +42,64 @@ async def get_index(response: Response):
         with open(index_path, "r", encoding="utf-8") as f:
             return f.read()
     return "<h1>MusicCue Frontend Not Found. Please build frontend files.</h1>"
+
+
+class SaveConfigReq(BaseModel):
+    activeProvider: Optional[str] = None
+    geminiApiKey: Optional[str] = None
+    openaiApiKey: Optional[str] = None
+    deepseekApiKey: Optional[str] = None
+    shortcutName: Optional[str] = None
+    volume: Optional[float] = None
+
+
+@app.get("/api/config")
+async def get_config():
+    """
+    Reads local configuration file JSON and returns it.
+    """
+    try:
+        if os.path.exists(CONFIG_FILE):
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"Error reading config: {e}")
+    return {
+        "activeProvider": "gemini",
+        "geminiApiKey": "",
+        "openaiApiKey": "",
+        "deepseekApiKey": "",
+        "shortcutName": "MusicCue",
+        "volume": 0.5
+    }
+
+
+@app.post("/api/config")
+async def save_config(req: SaveConfigReq):
+    """
+    Saves or merges configuration into local JSON file.
+    """
+    try:
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        current_config = {}
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                    current_config = json.load(f)
+            except Exception:
+                pass
+                
+        # Merge new parameters
+        req_dict = req.dict(exclude_unset=True)
+        for k, v in req_dict.items():
+            current_config[k] = v
+            
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(current_config, f, indent=4, ensure_ascii=False)
+            
+        return {"status": "success"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"保存配置失败: {str(e)}")
 
 
 class RecommendRequest(BaseModel):

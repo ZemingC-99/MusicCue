@@ -13,6 +13,47 @@ const state = {
     volume: parseFloat(localStorage.getItem("musiccue_volume") || "0.5")
 };
 
+// Load persistent configuration from Python backend
+async function loadBackendConfig() {
+    try {
+        const response = await fetch("/api/config");
+        if (response.ok) {
+            const config = await response.json();
+            if (config.activeProvider) state.activeProvider = config.activeProvider;
+            if (config.geminiApiKey !== undefined) state.geminiApiKey = config.geminiApiKey;
+            if (config.openaiApiKey !== undefined) state.openaiApiKey = config.openaiApiKey;
+            if (config.deepseekApiKey !== undefined) state.deepseekApiKey = config.deepseekApiKey;
+            if (config.shortcutName !== undefined) state.shortcutName = config.shortcutName;
+            if (config.volume !== undefined) state.volume = config.volume;
+            
+            // Sync fallback to localStorage for redundancy
+            localStorage.setItem("musiccue_active_provider", state.activeProvider);
+            localStorage.setItem("musiccue_gemini_api_key", state.geminiApiKey);
+            localStorage.setItem("musiccue_openai_api_key", state.openaiApiKey);
+            localStorage.setItem("musiccue_deepseek_api_key", state.deepseekApiKey);
+            localStorage.setItem("musiccue_shortcut_name", state.shortcutName);
+            localStorage.setItem("musiccue_volume", state.volume);
+        }
+    } catch (e) {
+        console.error("Failed to load backend config:", e);
+    }
+}
+
+// Save persistent configuration to Python backend
+async function saveBackendConfig(patch) {
+    try {
+        await fetch("/api/config", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(patch)
+        });
+    } catch (e) {
+        console.error("Failed to save backend config:", e);
+    }
+}
+
 // Toggle API key fields visibility based on active provider
 function updateApiKeyVisibility() {
     const groups = document.querySelectorAll(".provider-key-group");
@@ -25,9 +66,12 @@ function updateApiKeyVisibility() {
 }
 
 // Initialize elements on load
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     // Initialize Lucide Icons
     lucide.createIcons();
+
+    // Fetch config from backend to override default/local storage values
+    await loadBackendConfig();
 
     // Highlight the active provider button/tab during load
     const activeBtn = document.querySelector(`.provider-btn[data-provider="${state.activeProvider}"]`);
@@ -215,6 +259,7 @@ function setupEventListeners() {
             btn.classList.add("active");
             state.activeProvider = btn.getAttribute("data-provider");
             localStorage.setItem("musiccue_active_provider", state.activeProvider);
+            saveBackendConfig({ activeProvider: state.activeProvider });
             updateApiKeyVisibility();
             updateApiStatusBadge();
         });
@@ -224,6 +269,7 @@ function setupEventListeners() {
         geminiKeyInput.addEventListener("input", (e) => {
             state.geminiApiKey = e.target.value.trim();
             localStorage.setItem("musiccue_gemini_api_key", state.geminiApiKey);
+            saveBackendConfig({ geminiApiKey: state.geminiApiKey });
             updateApiStatusBadge();
         });
     }
@@ -232,6 +278,7 @@ function setupEventListeners() {
         openaiKeyInput.addEventListener("input", (e) => {
             state.openaiApiKey = e.target.value.trim();
             localStorage.setItem("musiccue_openai_api_key", state.openaiApiKey);
+            saveBackendConfig({ openaiApiKey: state.openaiApiKey });
             updateApiStatusBadge();
         });
     }
@@ -240,6 +287,7 @@ function setupEventListeners() {
         deepseekKeyInput.addEventListener("input", (e) => {
             state.deepseekApiKey = e.target.value.trim();
             localStorage.setItem("musiccue_deepseek_api_key", state.deepseekApiKey);
+            saveBackendConfig({ deepseekApiKey: state.deepseekApiKey });
             updateApiStatusBadge();
         });
     }
@@ -247,6 +295,7 @@ function setupEventListeners() {
     shortcutInput.addEventListener("input", (e) => {
         state.shortcutName = e.target.value.trim() || "MusicCue";
         localStorage.setItem("musiccue_shortcut_name", state.shortcutName);
+        saveBackendConfig({ shortcutName: state.shortcutName });
         
         // Update tutorial modal code tag dynamically
         const guideName = document.getElementById("guide-shortcut-name");
@@ -599,6 +648,7 @@ function setupBottomPlayerEvents() {
         globalPlayer.volume = val;
         state.volume = val;
         localStorage.setItem("musiccue_volume", val);
+        saveBackendConfig({ volume: val });
         volumeBar.style.width = `${val * 100}%`;
         
         // Update speaker icon
