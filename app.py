@@ -1,4 +1,5 @@
 import os
+import sys
 import csv
 import json
 import urllib.request
@@ -17,15 +18,23 @@ from pydantic import BaseModel
 
 app = FastAPI(title="MusicCue - Custom Apple Music Recommendation")
 
+# Support PyInstaller absolute resource extraction directory path
+if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+    BASE_DIR = sys._MEIPASS
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+static_dir = os.path.join(BASE_DIR, "static")
+
 # Serve frontend files from the static directory
-app.mount("/static", StaticFiles(directory="/Users/imaginist__/scratch/apple_music_rec/static"), name="static")
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 @app.get("/", response_class=HTMLResponse)
 async def get_index(response: Response):
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
-    index_path = "/Users/imaginist__/scratch/apple_music_rec/static/index.html"
+    index_path = os.path.join(static_dir, "index.html")
     if os.path.exists(index_path):
         with open(index_path, "r", encoding="utf-8") as f:
             return f.read()
@@ -647,3 +656,39 @@ async def sync_playlist(req: SyncRequest):
         if isinstance(e, HTTPException):
             raise e
         raise HTTPException(status_code=500, detail=f"Sync error: {str(e)}")
+
+
+if __name__ == "__main__":
+    import threading
+    import socket
+    import time
+    import uvicorn
+    import webview
+
+    def find_free_port():
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.bind(('127.0.0.1', 0))
+        port = s.getsockname()[1]
+        s.close()
+        return port
+
+    port = find_free_port()
+
+    def run_server():
+        uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
+
+    time.sleep(0.5)
+
+    webview.create_window(
+        title="MusicCue",
+        url=f"http://127.0.0.1:{port}",
+        width=1280,
+        height=800,
+        min_size=(1000, 700),
+        background_color='#FAFAF9'
+    )
+    webview.start()
+
