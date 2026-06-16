@@ -157,13 +157,6 @@ function updateShortcutsStatus() {
     const badge = document.getElementById("shortcuts-status");
     if (!badge) return;
 
-    // Show badge once resolved tracks exist
-    if (state.resolvedTracks.length > 0) {
-        badge.classList.remove("hidden");
-    } else {
-        badge.classList.add("hidden");
-    }
-
     const dot = badge.querySelector(".status-dot");
     const text = badge.querySelector(".status-text");
     const syncButton = document.getElementById("btn-sync");
@@ -171,19 +164,28 @@ function updateShortcutsStatus() {
     const shortcutExists = state.installedShortcuts.includes(state.shortcutName);
 
     if (shortcutExists) {
-        badge.className = "shortcuts-status-badge status-connected";
+        badge.classList.remove("status-disconnected");
+        badge.classList.add("status-connected");
         text.textContent = "快捷指令已就绪";
         if (syncButton) {
             syncButton.innerHTML = `<i data-lucide="zap"></i> <span>一键待播同步</span>`;
             lucide.createIcons();
         }
     } else {
-        badge.className = "shortcuts-status-badge status-disconnected";
+        badge.classList.remove("status-connected");
+        badge.classList.add("status-disconnected");
         text.textContent = "快捷指令未配置";
         if (syncButton) {
             syncButton.innerHTML = `<i data-lucide="help-circle"></i> <span>配置同步</span>`;
             lucide.createIcons();
         }
+    }
+
+    // Show badge once resolved tracks exist
+    if (state.resolvedTracks.length > 0) {
+        badge.classList.remove("hidden");
+    } else {
+        badge.classList.add("hidden");
     }
 }
 
@@ -254,6 +256,49 @@ function setupEventListeners() {
         
         updateShortcutsStatus();
     });
+
+    // One-click import button in Settings card
+    const btnSettingsImportShortcut = document.getElementById("btn-settings-import-shortcut");
+    if (btnSettingsImportShortcut) {
+        btnSettingsImportShortcut.addEventListener("click", async () => {
+            try {
+                btnSettingsImportShortcut.disabled = true;
+                const originalText = btnSettingsImportShortcut.innerHTML;
+                btnSettingsImportShortcut.innerHTML = `<i data-lucide="loader-2" class="animate-spin" style="width: 14px; height: 14px;"></i><span>正在打开...</span>`;
+                if (window.lucide) lucide.createIcons();
+                
+                const response = await fetch("/api/install-shortcut", { method: "POST" });
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showToast(result.message || "已打开快捷指令安装界面，请在系统弹窗中确认添加。", "success");
+                } else {
+                    showToast(result.detail || "一键导入失败，请双击 DMG 磁盘中的 MusicCue.shortcut 文件安装。", "error");
+                }
+                
+                btnSettingsImportShortcut.innerHTML = originalText;
+                if (window.lucide) lucide.createIcons();
+            } catch (err) {
+                showToast("连接服务失败，请双击 DMG 中的 MusicCue.shortcut 文件安装。", "error");
+                btnSettingsImportShortcut.innerHTML = `<i data-lucide="download" style="width: 14px; height: 14px;"></i><span>一键导入</span>`;
+                if (window.lucide) lucide.createIcons();
+            } finally {
+                btnSettingsImportShortcut.disabled = false;
+            }
+        });
+    }
+
+    // Help guide button in Settings card
+    const btnSettingsHelpShortcut = document.getElementById("btn-settings-help-shortcut");
+    if (btnSettingsHelpShortcut) {
+        btnSettingsHelpShortcut.addEventListener("click", () => {
+            const modal = document.getElementById("shortcut-modal");
+            if (modal) {
+                modal.classList.remove("hidden");
+                modal.classList.add("active");
+            }
+        });
+    }
 
     // Tab Switching (XML/CSV upload vs manual)
     const tabBtns = document.querySelectorAll(".tab-btn");
