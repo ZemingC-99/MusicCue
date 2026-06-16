@@ -680,7 +680,16 @@ if __name__ == "__main__":
     server_thread = threading.Thread(target=run_server, daemon=True)
     server_thread.start()
 
-    time.sleep(0.5)
+    # Dynamic port polling to check when server is active (checks every 20ms, up to 1.5s max)
+    start_time = time.time()
+    for _ in range(75):
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.02)
+                s.connect(('127.0.0.1', port))
+                break
+        except Exception:
+            time.sleep(0.02)
 
     webview.create_window(
         title="MusicCue",
